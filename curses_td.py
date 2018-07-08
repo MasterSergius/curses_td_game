@@ -17,11 +17,16 @@ FIElD_IMAGE = {'.': '. .', 'w': ' # ', 's': 'o> ', 'e': ' >o',
                'tc': TOWER_IMAGE_1, 'tm': TOWER_IMAGE_2, 'ts': TOWER_IMAGE_3}
 
 TIME_DELAY = 100
-CREEP_STATS = [{'hp': 50, 'count': 10, 'reward': 5},
-               {'hp': 100, 'count': 10, 'reward': 5},
-               {'hp': 300, 'count': 15, 'reward': 10},
-               {'hp': 500, 'count': 20, 'reward': 10},
-               {'hp': 10000, 'count': 1, 'reward': 100}]
+CREEP_STATS = [{'hp': 50, 'count': 10, 'reward': 1},
+               {'hp': 100, 'count': 15, 'reward': 2},
+               {'hp': 300, 'count': 20, 'reward': 3},
+               {'hp': 500, 'count': 20, 'reward': 4},
+               {'hp': 750, 'count': 25, 'reward': 5},
+               {'hp': 1000, 'count': 25, 'reward': 6},
+               {'hp': 1500, 'count': 30, 'reward': 7},
+               {'hp': 2000, 'count': 30, 'reward': 8},
+               {'hp': 2500, 'count': 35, 'reward': 9},
+               {'hp': 20000, 'count': 1, 'reward': 100}]
 
 START_GOLD = 100
 
@@ -29,10 +34,13 @@ TOWERS = {'c': {'damage': 5, 'speed': 20, 'range': 1, 'image': TOWER_IMAGE_1},
           'm': {'damage': 1, 'speed': 20, 'range': 5, 'image': TOWER_IMAGE_2},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
-PRICES = {'c': 10, 'm':20, 's': 200}
+PRICES = {'c': 10, 'm': 20, 's': 200}
+UPGRADE_STATS = {'c': {'damage': 5, 'speed': 5},
+                 'm': {'damage': 1, 'speed': 5},
+                 's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
-            "space - send creeps now, costs: c - 5, m - 20, s - 200"
+            "space - send creeps now, costs: c - 10, m - 20, s - 200"
 
 STATUS_LINE = "Gold: %s\t Round: %s\t Boss hp: %s\t Lifes: %s\t Kills: %s"
 
@@ -42,6 +50,9 @@ ERROR_ROW = 26
 CREEP_ROW = 27
 STATUS_LINE_ROW = 28
 HELP_INFO_ROW = 29
+
+OBJECT_INFO_ROW = 5
+OBJECT_INFO_COL = 80
 
 TIME_BETWEEN_WAVES = 60
 
@@ -215,6 +226,7 @@ class Tower():
     """ Class represents tower which can be built by player to destroy creeps. """
 
     def __init__(self, tower_type, row, col):
+        self.tower_type = tower_type
         self.range = TOWERS[tower_type]['range']
         self.damage = TOWERS[tower_type]['damage']
         self.speed = TOWERS[tower_type]['speed']
@@ -223,6 +235,7 @@ class Tower():
         self.row = row
         self.col = col
         self.speed_points = FPS
+        self.price = PRICES[tower_type]
 
     def find_target(self, creeps):
         """ Find first creep in tower's area of damage. """
@@ -244,7 +257,10 @@ class Tower():
 
     def upgrade(self):
         """ Upgrade tower stats. """
-        pass
+        self.damage += UPGRADE_STATS[self.tower_type].get('damage', 0)
+        self.speed += UPGRADE_STATS[self.tower_type].get('speed', 0)
+        self.range += UPGRADE_STATS[self.tower_type].get('range', 0)
+        self.price += self.price // 2
 
     def draw(self, stdscr):
         stdscr.addstr(self.row, self.col * CELL_WIDTH, self.image)
@@ -305,6 +321,8 @@ class GameController():
             cell_index = self.creep_path.index((creep.row, creep.col))
             if cell_index >= len(self.creep_path) - 1:
                 self.lifes -= 1
+                if self.lifes == 0:
+                    raise ExitGame
             else:
                 temp_creeps.append(creep)
                 row, col = self.creep_path[cell_index + 1]
@@ -320,6 +338,28 @@ class GameController():
                 self.towers.append(Tower(tower, self.cursor.row, self.cursor.col))
                 self.gold -= PRICES[tower]
 
+    def destroy_tower(self):
+        """ Destroy tower in current cursor's place. """
+        new_tower_list = []
+        for tower in self.towers:
+            if tower.row == self.cursor.row and tower.col == self.cursor.col:
+                self.gold += tower.price // 2
+                self.field[self.cursor.row][self.cursor.col] = 'w'
+                break
+            else:
+                new_tower_list.append(tower)
+        self.towers = new_tower_list
+
+    def upgrade_tower(self):
+        """ Upgrade tower in current cursor's place. """
+        for tower in self.towers:
+            if tower.row == self.cursor.row and tower.col == self.cursor.col:
+                upgrade_price = tower.price // 2
+                if self.gold >= upgrade_price:
+                    tower.upgrade()
+                    self.gold -= upgrade_price
+                break
+
     def action_per_time_tick(self, creep_count):
         """ Perform game actions per time tick. """
         for tower in self.towers:
@@ -330,6 +370,23 @@ class GameController():
         if kills > 0:
             self.gold += kills * self.creep_reward
             self.kills += kills
+
+    def show_object_under_cursor(self):
+        tower_info_template = 'Tower\n\nDamage: %s\nRange: %s\nSpeed: %s\n'\
+                              'Upgrade price: %s\nDestroy price: %s'
+        for offset in range(len(tower_info_template.split('\n'))):
+            self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, ' ' * 25)
+            offset += 1
+        for tower in self.towers:
+            if tower.row == self.cursor.row and tower.col == self.cursor.col:
+                obj_info = tower_info_template \
+                           % (tower.damage, tower.range, tower.speed,
+                              tower.price // 2, tower.price // 2)
+                offset = 0
+                for line in obj_info.split('\n'):
+                    self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
+                    offset += 1
+
 
     def main_loop(self):
         tick = 0
@@ -395,9 +452,10 @@ class GameController():
             status = STATUS_LINE % (self.gold, self.level_round,
                                     self.boss, self.lifes, self.kills)
             self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
+            self.show_object_under_cursor()
             self.stdscr.refresh()
             c = self.stdscr.getch()
-            if c == ord('q'):
+            if c in (ord('q'), ord('Q')):
                 raise ExitGame
 
             if c == ord(' '):
@@ -417,6 +475,13 @@ class GameController():
             if c in (ord('c'), ord('m'), ord('s'), ord('C'), ord('M'), ord('S')):
                 self.build_tower(chr(c).lower())
 
+            if c in (ord('d'), ord('D')):
+                self.destroy_tower()
+
+            if c in (ord('u'), ord('U')):
+                self.upgrade_tower()
+
+
     def start_game(self):
         self.stdscr.nodelay(True)
         self.stdscr.clear()
@@ -426,7 +491,7 @@ class GameController():
         try:
             self.main_loop()
         except ExitGame:
-            time.sleep(10)
+            pass
 
 def main(stdscr):
     # hide cursor by setting visibility to 0
