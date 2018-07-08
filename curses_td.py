@@ -26,7 +26,17 @@ CREEP_STATS = [{'hp': 50, 'count': 10, 'reward': 1},
                {'hp': 1500, 'count': 30, 'reward': 7},
                {'hp': 2000, 'count': 30, 'reward': 8},
                {'hp': 2500, 'count': 35, 'reward': 9},
-               {'hp': 20000, 'count': 1, 'reward': 100}]
+               {'hp': 20000, 'count': 1, 'reward': 100},
+               {'hp': 3500, 'count': 35, 'reward': 11},
+               {'hp': 5000, 'count': 40, 'reward': 12},
+               {'hp': 7000, 'count': 40, 'reward': 13},
+               {'hp': 10000, 'count': 45, 'reward': 14},
+               {'hp': 15000, 'count': 45, 'reward': 15},
+               {'hp': 20000, 'count': 50, 'reward': 16},
+               {'hp': 25000, 'count': 50, 'reward': 17},
+               {'hp': 30000, 'count': 55, 'reward': 18},
+               {'hp': 40000, 'count': 55, 'reward': 19},
+               {'hp': 500000, 'count': 1, 'reward': 200}]
 
 START_GOLD = 100
 
@@ -35,8 +45,8 @@ TOWERS = {'c': {'damage': 5, 'speed': 20, 'range': 1, 'image': TOWER_IMAGE_1},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
 PRICES = {'c': 10, 'm': 20, 's': 200}
-UPGRADE_STATS = {'c': {'damage': 5, 'speed': 5},
-                 'm': {'damage': 1, 'speed': 5},
+UPGRADE_STATS = {'c': {'damage': 5, 'speed': 1},
+                 'm': {'damage': 1, 'speed': 1},
                  's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
@@ -57,6 +67,7 @@ OBJECT_INFO_COL = 80
 TIME_BETWEEN_WAVES = 60
 
 FPS = 60
+ATTACK_SPEED_POINTS = 60
 
 LIFES = 20
 
@@ -201,10 +212,11 @@ class Creep():
 
     """ Class represents creep, which is moving from start to end point. """
 
-    def __init__(self, start_row, start_col, hp, speed=1):
+    def __init__(self, start_row, start_col, hp, reward, speed=1):
         self.row = start_row
         self.col = start_col
         self.hp = hp
+        self.reward = reward
         self.speed = speed
 
     def move(self, next_row, next_col):
@@ -249,9 +261,9 @@ class Tower():
         """ Attack creep if it is possible. """
         self.find_target(creeps)
         if self.target:
-            if self.speed_points >= FPS:
+            while self.speed_points >= ATTACK_SPEED_POINTS:
                 self.target.get_damage(self.damage)
-                self.speed_points = 0
+                self.speed_points -= ATTACK_SPEED_POINTS
             else:
                 self.speed_points += self.speed
 
@@ -312,7 +324,8 @@ class GameController():
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
-        self.creeps.append(Creep(self.start_row, self.start_col, self.creep_hp))
+        self.creeps.append(Creep(self.start_row, self.start_col, self.creep_hp,
+                                 self.creep_reward))
 
     def move_creeps(self):
         """ Move all creeps to next cell in route. """
@@ -365,11 +378,14 @@ class GameController():
         for tower in self.towers:
             tower.attack(self.creeps)
         # remove dead creeps
-        self.creeps = [creep for creep in self.creeps if creep.hp > 0]
-        kills = creep_count - len(self.creeps)
-        if kills > 0:
-            self.gold += kills * self.creep_reward
-            self.kills += kills
+        alive_creeps = []
+        for creep in self.creeps:
+            if creep.hp <= 0:
+                self.kills += 1
+                self.gold += creep.reward
+            else:
+                alive_creeps.append(creep)
+        self.creeps = alive_creeps
 
     def show_object_under_cursor(self):
         tower_info_template = 'Tower\n\nDamage: %s\nRange: %s\nSpeed: %s\n'\
@@ -399,87 +415,93 @@ class GameController():
         sent_creeps = 0
         last_round = False
         while True:
-            self.draw_field()
-            new_time = time.time()
-            if last_round and creep_count == 0:
-                raise ExitGame
+            if not self.pause:
+                self.draw_field()
+                new_time = time.time()
+                if last_round and creep_count == 0:
+                    raise ExitGame
 
-            if (new_time - timer) >= (1 / FPS):
-                timer = new_time
-                tick += 1
-                self.action_per_time_tick(creep_count)
-                creep_count = len(self.creeps)
+                if (new_time - timer) >= (1 / FPS):
+                    timer = new_time
+                    tick += 1
+                    self.action_per_time_tick(creep_count)
+                    creep_count = len(self.creeps)
 
-            if tick == FPS:
-                tick = 0
-                sec -= 1
-                self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
-                                                               self.creep_hp,
-                                                               self.creep_count))
-                if spawn_on:
-                    if sent_creeps < self.creep_count:
-                        self.spawn_creep()
-                        sent_creeps += 1
+                if tick == FPS:
+                    tick = 0
+                    sec -= 1
+                    self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
+                                                                   self.creep_hp,
+                                                                   self.creep_count))
+                    if spawn_on:
+                        if sent_creeps < self.creep_count:
+                            self.spawn_creep()
+                            sent_creeps += 1
+                        else:
+                            spawn_on = False
+                            sent_creeps = 0
+                            send_wave_finish = True
+                    self.move_creeps()
+
+
+                if sec == 0:
+                    sec = TIME_BETWEEN_WAVES
+                    spawn_on = True
+                    next_round = True
+
+                if next_round and send_wave_finish:
+                    if self.level_round < len(CREEP_STATS):
+                        self.setup_round(self.level_round)
                     else:
-                        spawn_on = False
-                        sent_creeps = 0
-                        send_wave_finish = True
-                self.move_creeps()
+                        last_round = True
+                    next_round = False
+                    send_wave_finish = False
 
+                for creep in self.creeps:
+                    creep.draw(self.stdscr)
 
-            if sec == 0:
-                sec = TIME_BETWEEN_WAVES
-                spawn_on = True
-                next_round = True
-
-            if next_round and send_wave_finish:
-                if self.level_round < len(CREEP_STATS):
-                    self.setup_round(self.level_round)
+                if self.boss_round and len(self.creeps) > 0:
+                    self.boss = self.creeps[0].hp
                 else:
-                    last_round = True
-                next_round = False
-                send_wave_finish = False
+                    self.boss = 0
+                self.cursor.draw(self.stdscr)
+                self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
+                status = STATUS_LINE % (self.gold, self.level_round,
+                                        self.boss, self.lifes, self.kills)
+                self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
+                self.show_object_under_cursor()
+                self.stdscr.refresh()
 
-            for creep in self.creeps:
-                creep.draw(self.stdscr)
-
-            if self.boss_round and len(self.creeps) > 0:
-                self.boss = self.creeps[0].hp
-            else:
-                self.boss = 0
-            self.cursor.draw(self.stdscr)
-            self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
-            status = STATUS_LINE % (self.gold, self.level_round,
-                                    self.boss, self.lifes, self.kills)
-            self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
-            self.show_object_under_cursor()
-            self.stdscr.refresh()
             c = self.stdscr.getch()
             if c in (ord('q'), ord('Q')):
                 raise ExitGame
 
-            if c == ord(' '):
-                sec = TIME_BETWEEN_WAVES
-                spawn_on = True
-                next_round = True
+            if c in (ord('p'), ord('P')):
+                self.pause = not self.pause
 
-            if c in (curses.KEY_UP, ord('k'), ord('K')):
-                self.cursor.move_up()
-            if c in (curses.KEY_DOWN, ord('j'), ord('J')):
-                self.cursor.move_down()
-            if c in (curses.KEY_LEFT, ord('h'), ord('H')):
-                self.cursor.move_left()
-            if c in (curses.KEY_RIGHT, ord('l'), ord('L')):
-                self.cursor.move_right()
+            if not self.pause:
+                if c == ord(' '):
+                    sec = TIME_BETWEEN_WAVES
+                    spawn_on = True
+                    next_round = True
 
-            if c in (ord('c'), ord('m'), ord('s'), ord('C'), ord('M'), ord('S')):
-                self.build_tower(chr(c).lower())
+                if c in (curses.KEY_UP, ord('k'), ord('K')):
+                    self.cursor.move_up()
+                if c in (curses.KEY_DOWN, ord('j'), ord('J')):
+                    self.cursor.move_down()
+                if c in (curses.KEY_LEFT, ord('h'), ord('H')):
+                    self.cursor.move_left()
+                if c in (curses.KEY_RIGHT, ord('l'), ord('L')):
+                    self.cursor.move_right()
 
-            if c in (ord('d'), ord('D')):
-                self.destroy_tower()
+                if c in (ord('c'), ord('m'), ord('s'), ord('C'), ord('M'), ord('S')):
+                    self.build_tower(chr(c).lower())
 
-            if c in (ord('u'), ord('U')):
-                self.upgrade_tower()
+                if c in (ord('d'), ord('D')):
+                    self.destroy_tower()
+
+                if c in (ord('u'), ord('U')):
+                    self.upgrade_tower()
 
 
     def start_game(self):
@@ -488,6 +510,7 @@ class GameController():
 
         self.setup_level(1)
         self.setup_round(0)
+        self.pause = False
         try:
             self.main_loop()
         except ExitGame:
