@@ -28,25 +28,25 @@ CREEP_STATS = [{'hp': 50, 'count': 10, 'reward': 1},
                {'hp': 2500, 'count': 35, 'reward': 9},
                {'hp': 20000, 'count': 1, 'reward': 100},
                {'hp': 3500, 'count': 35, 'reward': 11},
-               {'hp': 5000, 'count': 40, 'reward': 12},
-               {'hp': 7000, 'count': 40, 'reward': 13},
-               {'hp': 10000, 'count': 45, 'reward': 14},
-               {'hp': 15000, 'count': 45, 'reward': 15},
-               {'hp': 20000, 'count': 50, 'reward': 16},
-               {'hp': 25000, 'count': 50, 'reward': 17},
-               {'hp': 30000, 'count': 55, 'reward': 18},
-               {'hp': 40000, 'count': 55, 'reward': 19},
+               {'hp': 4500, 'count': 40, 'reward': 12},
+               {'hp': 6000, 'count': 40, 'reward': 13},
+               {'hp': 8000, 'count': 45, 'reward': 14},
+               {'hp': 10000, 'count': 45, 'reward': 15},
+               {'hp': 12500, 'count': 50, 'reward': 16},
+               {'hp': 15000, 'count': 50, 'reward': 17},
+               {'hp': 18000, 'count': 55, 'reward': 18},
+               {'hp': 22000, 'count': 55, 'reward': 19},
                {'hp': 500000, 'count': 1, 'reward': 200}]
 
 START_GOLD = 100
 
-TOWERS = {'c': {'damage': 5, 'speed': 20, 'range': 1, 'image': TOWER_IMAGE_1},
-          'm': {'damage': 1, 'speed': 20, 'range': 5, 'image': TOWER_IMAGE_2},
+TOWERS = {'c': {'damage': 5, 'speed': 10, 'range': 1, 'image': TOWER_IMAGE_1},
+          'm': {'damage': 1, 'speed': 10, 'range': 5, 'image': TOWER_IMAGE_2},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
 PRICES = {'c': 10, 'm': 20, 's': 200}
-UPGRADE_STATS = {'c': {'damage': 5, 'speed': 1},
-                 'm': {'damage': 1, 'speed': 1},
+UPGRADE_STATS = {'c': {'damage': 5, 'speed': 2},
+                 'm': {'damage': 2, 'speed': 2},
                  's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
@@ -319,13 +319,16 @@ class GameController():
         self.creep_count = CREEP_STATS[round_number]['count']
         self.creep_reward = CREEP_STATS[round_number]['reward']
         self.level_round = round_number + 1
-        self.boss = self.creep_hp if self.creep_count == 1 else 0
-        self.boss_round = self.boss > 0
+        self.boss_round = True if self.creep_count == 1 else False
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
         self.creeps.append(Creep(self.start_row, self.start_col, self.creep_hp,
                                  self.creep_reward))
+        if self.boss_round:
+            self.boss = self.creeps[0]
+        else:
+            self.boss = None
 
     def move_creeps(self):
         """ Move all creeps to next cell in route. """
@@ -414,6 +417,7 @@ class GameController():
         send_wave_finish = False
         sent_creeps = 0
         last_round = False
+        self.boss = None
         while True:
             if not self.pause:
                 self.draw_field()
@@ -460,14 +464,11 @@ class GameController():
                 for creep in self.creeps:
                     creep.draw(self.stdscr)
 
-                if self.boss_round and len(self.creeps) > 0:
-                    self.boss = self.creeps[0].hp
-                else:
-                    self.boss = 0
+                boss_hp = self.boss.hp if self.boss else 0
                 self.cursor.draw(self.stdscr)
                 self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
                 status = STATUS_LINE % (self.gold, self.level_round,
-                                        self.boss, self.lifes, self.kills)
+                                        boss_hp, self.lifes, self.kills)
                 self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
                 self.show_object_under_cursor()
                 self.stdscr.refresh()
