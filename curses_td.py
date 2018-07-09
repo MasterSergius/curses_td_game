@@ -44,13 +44,14 @@ TOWERS = {'c': {'damage': 5, 'speed': 10, 'range': 1, 'image': TOWER_IMAGE_1},
           'm': {'damage': 1, 'speed': 10, 'range': 5, 'image': TOWER_IMAGE_2},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
-PRICES = {'c': 10, 'm': 20, 's': 200}
+PRICES = {'c': 10, 'm': 20, 's': 50}
 UPGRADE_STATS = {'c': {'damage': 5, 'speed': 2},
                  'm': {'damage': 2, 'speed': 2},
                  's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
-            "space - send creeps now, costs: c - 10, m - 20, s - 200"
+            "space - send creeps now, costs: c - %s, m - %s, s - %s" \
+            % (PRICES['c'], PRICES['m'], PRICES['s'])
 
 STATUS_LINE = "Gold: %s\t Round: %s\t Boss hp: %s\t Lifes: %s\t Kills: %s"
 
@@ -256,6 +257,7 @@ class Tower():
             if (abs(creep.row - self.row) <= self.range and
                 abs(creep.col - self.col) <= self.range):
                 self.target = creep
+                break
 
     def attack(self, creeps):
         """ Attack creep if it is possible. """
