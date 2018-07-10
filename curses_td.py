@@ -17,37 +17,44 @@ FIElD_IMAGE = {'.': '. .', 'w': ' # ', 's': 'o> ', 'e': ' >o',
                'tc': TOWER_IMAGE_1, 'tm': TOWER_IMAGE_2, 'ts': TOWER_IMAGE_3}
 
 TIME_DELAY = 100
-CREEP_STATS = [{'hp': 50, 'count': 10, 'reward': 1},
-               {'hp': 100, 'count': 15, 'reward': 2},
-               {'hp': 300, 'count': 20, 'reward': 3},
+CREEP_STATS = [{'hp': 100, 'count': 10, 'reward': 1},
+               {'hp': 200, 'count': 15, 'reward': 2},
+               {'hp': 350, 'count': 20, 'reward': 3},
                {'hp': 500, 'count': 20, 'reward': 4},
-               {'hp': 750, 'count': 25, 'reward': 5},
+               {'hp': 10000, 'count': 1, 'reward': 50},
                {'hp': 1000, 'count': 25, 'reward': 6},
-               {'hp': 1500, 'count': 30, 'reward': 7},
+               {'hp': 1500, 'count': 25, 'reward': 7},
                {'hp': 2000, 'count': 30, 'reward': 8},
-               {'hp': 2500, 'count': 35, 'reward': 9},
-               {'hp': 20000, 'count': 1, 'reward': 100},
-               {'hp': 3500, 'count': 35, 'reward': 11},
-               {'hp': 4500, 'count': 40, 'reward': 12},
-               {'hp': 6000, 'count': 40, 'reward': 13},
-               {'hp': 8000, 'count': 45, 'reward': 14},
-               {'hp': 10000, 'count': 45, 'reward': 15},
-               {'hp': 12500, 'count': 50, 'reward': 16},
-               {'hp': 15000, 'count': 50, 'reward': 17},
-               {'hp': 18000, 'count': 55, 'reward': 18},
-               {'hp': 22000, 'count': 55, 'reward': 19},
-               {'hp': 500000, 'count': 1, 'reward': 200}]
+               {'hp': 2500, 'count': 30, 'reward': 9},
+               {'hp': 25000, 'count': 1, 'reward': 100},
+               {'hp': 3000, 'count': 35, 'reward': 10},
+               {'hp': 3500, 'count': 35, 'reward': 12},
+               {'hp': 4500, 'count': 40, 'reward': 13},
+               {'hp': 6000, 'count': 40, 'reward': 14},
+               {'hp': 100000, 'count': 1, 'reward': 150},
+               {'hp': 8000, 'count': 45, 'reward': 15},
+               {'hp': 10000, 'count': 45, 'reward': 16},
+               {'hp': 12500, 'count': 50, 'reward': 17},
+               {'hp': 15000, 'count': 50, 'reward': 18},
+               {'hp': 18000, 'count': 55, 'reward': 19},
+               {'hp': 500000, 'count': 1, 'reward': 200},
+               {'hp': 22000, 'count': 55, 'reward': 21},
+               {'hp': 25000, 'count': 60, 'reward': 22},
+               {'hp': 30000, 'count': 60, 'reward': 23},
+               {'hp': 35000, 'count': 65, 'reward': 24},
+               {'hp': 1000000, 'count': 1, 'reward': 250}]
 
 START_GOLD = 100
 
-TOWERS = {'c': {'damage': 5, 'speed': 10, 'range': 1, 'image': TOWER_IMAGE_1},
-          'm': {'damage': 1, 'speed': 10, 'range': 5, 'image': TOWER_IMAGE_2},
-          's': {'damage': 100, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
+TOWERS = {'c': {'damage': 6, 'speed': 5, 'range': 1, 'image': TOWER_IMAGE_1},
+          'm': {'damage': 3, 'speed': 5, 'range': 5, 'image': TOWER_IMAGE_2},
+          's': {'damage': 50, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
 PRICES = {'c': 10, 'm': 20, 's': 50}
-UPGRADE_STATS = {'c': {'damage': 5, 'speed': 2},
-                 'm': {'damage': 2, 'speed': 2},
-                 's': {'damage': 100, 'range': 1}}
+#Upgrade damage in percent from main damage
+UPGRADE_STATS = {'c': {'damage': 25, 'speed': 3},
+                 'm': {'damage': 50, 'speed': 2},
+                 's': {'damage': 75, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
             "space - send creeps now, costs: c - %s, m - %s, s - %s" \
@@ -213,12 +220,12 @@ class Creep():
 
     """ Class represents creep, which is moving from start to end point. """
 
-    def __init__(self, start_row, start_col, hp, reward, speed=1):
+    def __init__(self, start_row, start_col, hp, reward, boss=False):
         self.row = start_row
         self.col = start_col
         self.hp = hp
         self.reward = reward
-        self.speed = speed
+        self.boss = boss
 
     def move(self, next_row, next_col):
         self.row = next_row
@@ -271,7 +278,7 @@ class Tower():
 
     def upgrade(self):
         """ Upgrade tower stats. """
-        self.damage += UPGRADE_STATS[self.tower_type].get('damage', 0)
+        self.damage += self.damage * UPGRADE_STATS[self.tower_type].get('damage', 0) // 100
         self.speed += UPGRADE_STATS[self.tower_type].get('speed', 0)
         self.range += UPGRADE_STATS[self.tower_type].get('range', 0)
         self.price += self.price // 2
@@ -326,7 +333,7 @@ class GameController():
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
         self.creeps.append(Creep(self.start_row, self.start_col, self.creep_hp,
-                                 self.creep_reward))
+                                 self.creep_reward, self.boss_round))
         if self.boss_round:
             self.boss = self.creeps[0]
         else:
@@ -363,7 +370,6 @@ class GameController():
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
                 self.gold += tower.price // 2
                 self.field[self.cursor.row][self.cursor.col] = 'w'
-                break
             else:
                 new_tower_list.append(tower)
         self.towers = new_tower_list
@@ -463,10 +469,12 @@ class GameController():
                     next_round = False
                     send_wave_finish = False
 
+                boss_hp = 0
                 for creep in self.creeps:
                     creep.draw(self.stdscr)
+                    if creep.boss:
+                        boss_hp = creep.hp
 
-                boss_hp = self.boss.hp if self.boss else 0
                 self.cursor.draw(self.stdscr)
                 self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
                 status = STATUS_LINE % (self.gold, self.level_round,
