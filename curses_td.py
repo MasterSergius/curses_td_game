@@ -17,10 +17,10 @@ FIElD_IMAGE = {'.': '. .', 'w': ' # ', 's': 'o> ', 'e': ' >o',
                'tc': TOWER_IMAGE_1, 'tm': TOWER_IMAGE_2, 'ts': TOWER_IMAGE_3}
 
 TIME_DELAY = 100
-CREEP_STATS = [{'hp': 100, 'count': 10, 'reward': 1},
-               {'hp': 200, 'count': 15, 'reward': 2},
-               {'hp': 350, 'count': 20, 'reward': 3},
-               {'hp': 500, 'count': 20, 'reward': 4},
+CREEP_STATS = [{'hp': 150, 'count': 10, 'reward': 1},
+               {'hp': 250, 'count': 15, 'reward': 2},
+               {'hp': 400, 'count': 20, 'reward': 3},
+               {'hp': 600, 'count': 20, 'reward': 4},
                {'hp': 10000, 'count': 1, 'reward': 50},
                {'hp': 1000, 'count': 25, 'reward': 6},
                {'hp': 1500, 'count': 25, 'reward': 7},
@@ -36,25 +36,25 @@ CREEP_STATS = [{'hp': 100, 'count': 10, 'reward': 1},
                {'hp': 10000, 'count': 45, 'reward': 16},
                {'hp': 12500, 'count': 50, 'reward': 17},
                {'hp': 15000, 'count': 50, 'reward': 18},
-               {'hp': 18000, 'count': 55, 'reward': 19},
+               {'hp': 18000, 'count': 50, 'reward': 19},
                {'hp': 500000, 'count': 1, 'reward': 200},
-               {'hp': 22000, 'count': 55, 'reward': 21},
-               {'hp': 25000, 'count': 60, 'reward': 22},
-               {'hp': 30000, 'count': 60, 'reward': 23},
-               {'hp': 35000, 'count': 65, 'reward': 24},
+               {'hp': 22000, 'count': 50, 'reward': 21},
+               {'hp': 25000, 'count': 50, 'reward': 22},
+               {'hp': 30000, 'count': 50, 'reward': 23},
+               {'hp': 35000, 'count': 50, 'reward': 24},
                {'hp': 1000000, 'count': 1, 'reward': 250}]
 
 START_GOLD = 100
 
-TOWERS = {'c': {'damage': 6, 'speed': 5, 'range': 1, 'image': TOWER_IMAGE_1},
+TOWERS = {'c': {'damage': 4, 'speed': 5, 'range': 1, 'image': TOWER_IMAGE_1},
           'm': {'damage': 3, 'speed': 5, 'range': 5, 'image': TOWER_IMAGE_2},
           's': {'damage': 50, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
 PRICES = {'c': 10, 'm': 20, 's': 50}
 #Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 25, 'speed': 3},
+UPGRADE_STATS = {'c': {'damage': 45, 'speed': 3},
                  'm': {'damage': 50, 'speed': 2},
-                 's': {'damage': 75, 'range': 1}}
+                 's': {'damage': 55, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
             "space - send creeps now, costs: c - %s, m - %s, s - %s" \
