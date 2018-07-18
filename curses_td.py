@@ -13,48 +13,22 @@ TOWER_IMAGE_1 = '***'
 TOWER_IMAGE_2 = ':|:'
 TOWER_IMAGE_3 = 'o-o'
 
-FIElD_IMAGE = {'.': '. .', 'w': ' # ', 's': 'o> ', 'e': ' >o',
+FIElD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # ',
                'tc': TOWER_IMAGE_1, 'tm': TOWER_IMAGE_2, 'ts': TOWER_IMAGE_3}
 
 TIME_DELAY = 100
-CREEP_STATS = [{'hp': 150, 'count': 10, 'reward': 1},
-               {'hp': 250, 'count': 15, 'reward': 2},
-               {'hp': 400, 'count': 20, 'reward': 3},
-               {'hp': 600, 'count': 20, 'reward': 4},
-               {'hp': 10000, 'count': 1, 'reward': 50},
-               {'hp': 1000, 'count': 25, 'reward': 6},
-               {'hp': 1500, 'count': 25, 'reward': 7},
-               {'hp': 2000, 'count': 30, 'reward': 8},
-               {'hp': 2500, 'count': 30, 'reward': 9},
-               {'hp': 25000, 'count': 1, 'reward': 100},
-               {'hp': 3000, 'count': 35, 'reward': 10},
-               {'hp': 3500, 'count': 35, 'reward': 12},
-               {'hp': 4500, 'count': 40, 'reward': 13},
-               {'hp': 6000, 'count': 40, 'reward': 14},
-               {'hp': 100000, 'count': 1, 'reward': 150},
-               {'hp': 8000, 'count': 45, 'reward': 15},
-               {'hp': 10000, 'count': 45, 'reward': 16},
-               {'hp': 12500, 'count': 50, 'reward': 17},
-               {'hp': 15000, 'count': 50, 'reward': 18},
-               {'hp': 18000, 'count': 50, 'reward': 19},
-               {'hp': 500000, 'count': 1, 'reward': 200},
-               {'hp': 22000, 'count': 50, 'reward': 21},
-               {'hp': 25000, 'count': 50, 'reward': 22},
-               {'hp': 30000, 'count': 50, 'reward': 23},
-               {'hp': 35000, 'count': 50, 'reward': 24},
-               {'hp': 1000000, 'count': 1, 'reward': 250}]
 
-START_GOLD = 100
+START_GOLD = 50
 
-TOWERS = {'c': {'damage': 4, 'speed': 5, 'range': 1, 'image': TOWER_IMAGE_1},
-          'm': {'damage': 3, 'speed': 5, 'range': 5, 'image': TOWER_IMAGE_2},
+TOWERS = {'c': {'damage': 2, 'speed': 3, 'range': 1, 'image': TOWER_IMAGE_1},
+          'm': {'damage': 4, 'speed': 2, 'range': 5, 'image': TOWER_IMAGE_2},
           's': {'damage': 50, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
 
-PRICES = {'c': 10, 'm': 20, 's': 50}
+PRICES = {'c': 5, 'm': 20, 's': 50}
 #Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 45, 'speed': 3},
-                 'm': {'damage': 50, 'speed': 2},
-                 's': {'damage': 55, 'range': 1}}
+UPGRADE_STATS = {'c': {'damage': 50, 'speed': 3},
+                 'm': {'damage': 75, 'speed': 2},
+                 's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
             "space - send creeps now, costs: c - %s, m - %s, s - %s" \
@@ -78,6 +52,15 @@ FPS = 60
 ATTACK_SPEED_POINTS = 60
 
 LIFES = 20
+
+MAX_ROUNDS = 50
+CREEP_COUNT = 30
+START_CREEP_HP = 100
+START_CREEP_REWARD = 1
+CREEP_HP_UPGRADE_PERCENTAGE = 50
+BOSS_HP_MULTIPLY = 50
+BOSS_REWARD_MULTIPLY = 10
+CREEP_REWARD_MULTIPLY_PERCENTAGE = 25
 
 
 class ExitGame(Exception):
@@ -324,11 +307,30 @@ class GameController():
 
     def setup_round(self, round_number):
         """ Prepare next wave of creeps. """
-        self.creep_hp = CREEP_STATS[round_number]['hp']
-        self.creep_count = CREEP_STATS[round_number]['count']
-        self.creep_reward = CREEP_STATS[round_number]['reward']
         self.level_round = round_number + 1
-        self.boss_round = True if self.creep_count == 1 else False
+        self.boss_round = True if self.level_round % 5 == 0 else False
+
+        if self.level_round == 1:
+            self.creep_hp = START_CREEP_HP
+            self.temp_creep_hp = START_CREEP_HP
+            self.creep_reward = START_CREEP_REWARD
+            self.temp_creep_reward = START_CREEP_REWARD
+            self.creep_count = CREEP_COUNT
+        else:
+            self.creep_hp = self.temp_creep_hp
+            self.creep_reward = self.temp_creep_reward
+            if self.boss_round:
+                self.creep_count = 1
+                self.temp_creep_hp = self.creep_hp
+                self.creep_hp *= BOSS_HP_MULTIPLY
+                self.creep_reward *= BOSS_REWARD_MULTIPLY
+            else:
+                self.creep_count = CREEP_COUNT
+                self.creep_hp += self.creep_hp * CREEP_HP_UPGRADE_PERCENTAGE // 100
+                self.temp_creep_hp = self.creep_hp
+                self.creep_reward += self.creep_reward * \
+                                     CREEP_REWARD_MULTIPLY_PERCENTAGE // 100 or 1
+                self.temp_creep_reward = self.creep_reward
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
@@ -414,7 +416,6 @@ class GameController():
                     self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
                     offset += 1
 
-
     def main_loop(self):
         tick = 0
         sec = TIME_BETWEEN_WAVES
@@ -462,7 +463,7 @@ class GameController():
                     next_round = True
 
                 if next_round and send_wave_finish:
-                    if self.level_round < len(CREEP_STATS):
+                    if self.level_round < MAX_ROUNDS:
                         self.setup_round(self.level_round)
                     else:
                         last_round = True
@@ -513,7 +514,6 @@ class GameController():
 
                 if c in (ord('u'), ord('U')):
                     self.upgrade_tower()
-
 
     def start_game(self):
         self.stdscr.nodelay(True)
