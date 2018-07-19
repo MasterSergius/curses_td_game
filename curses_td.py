@@ -9,34 +9,33 @@ MAX_ROWS, MAX_COLS = 25, 25
 CELL_WIDTH = 3
 
 CREEP_IMAGE = ' @ '
-TOWER_IMAGE_1 = '***'
-TOWER_IMAGE_2 = ':|:'
-TOWER_IMAGE_3 = 'o-o'
+TOWER_IMAGE_1 = ('***', ' **', '** ')
+TOWER_IMAGE_2 = (':|:', ':-:', '.|.')
+TOWER_IMAGE_3 = ('o-o', '0-0', 'o=o')
 
-FIElD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # ',
-               'tc': TOWER_IMAGE_1, 'tm': TOWER_IMAGE_2, 'ts': TOWER_IMAGE_3}
+FIElD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # '}
 
 TIME_DELAY = 100
 
 START_GOLD = 50
 
-TOWERS = {'c': {'damage': 2, 'speed': 3, 'range': 1, 'image': TOWER_IMAGE_1},
-          'm': {'damage': 4, 'speed': 2, 'range': 5, 'image': TOWER_IMAGE_2},
-          's': {'damage': 50, 'speed': 1, 'range': 10, 'image': TOWER_IMAGE_3}}
+TOWERS = {'c': {'damage': 4, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
+          'm': {'damage': 4, 'speed': 2, 'range': 5, 'images': TOWER_IMAGE_2},
+          's': {'damage': 50, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3}}
 
 PRICES = {'c': 5, 'm': 20, 's': 50}
 #Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 50, 'speed': 3},
-                 'm': {'damage': 75, 'speed': 2},
+UPGRADE_STATS = {'c': {'damage': 25, 'speed': 3},
+                 'm': {'damage': 60, 'speed': 2},
                  's': {'damage': 100, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
             "space - send creeps now, costs: c - %s, m - %s, s - %s" \
             % (PRICES['c'], PRICES['m'], PRICES['s'])
 
-STATUS_LINE = "Gold: %s\t Round: %s\t Boss hp: %s\t Lifes: %s\t Kills: %s"
+STATUS_LINE = "Gold: %s  Round: %s  Boss hp: %s  Lifes: %s  Kills: %s"
 
-CREEP_INFO = 'Time before creep wave: %s. Creeps hp: %s,  number: %s'
+CREEP_INFO = 'Time before creep wave: %s. Creeps hp: %s,  number: %s/%s'
 
 ERROR_ROW = 26
 CREEP_ROW = 27
@@ -57,9 +56,9 @@ MAX_ROUNDS = 50
 CREEP_COUNT = 30
 START_CREEP_HP = 100
 START_CREEP_REWARD = 1
-CREEP_HP_UPGRADE_PERCENTAGE = 50
+CREEP_HP_UPGRADE_PERCENTAGE = 75
 BOSS_HP_MULTIPLY = 50
-BOSS_REWARD_MULTIPLY = 10
+BOSS_REWARD_MULTIPLY = 50
 CREEP_REWARD_MULTIPLY_PERCENTAGE = 25
 
 
@@ -233,12 +232,19 @@ class Tower():
         self.range = TOWERS[tower_type]['range']
         self.damage = TOWERS[tower_type]['damage']
         self.speed = TOWERS[tower_type]['speed']
-        self.image = TOWERS[tower_type]['image']
+        self.image_set = TOWERS[tower_type]['images']
+        self.image = 0
         self.target = None
         self.row = row
         self.col = col
         self.speed_points = FPS
         self.price = PRICES[tower_type]
+
+    def _next_image(self):
+        """ Cycle over images to simulate animation. """
+        self.image += 1
+        if self.image >= len(self.image_set):
+            self.image = 0
 
     def find_target(self, creeps):
         """ Find first creep in tower's area of damage. """
@@ -258,6 +264,9 @@ class Tower():
                 self.speed_points -= ATTACK_SPEED_POINTS
             else:
                 self.speed_points += self.speed
+            self._next_image()
+        else:
+            self.image = 0
 
     def upgrade(self):
         """ Upgrade tower stats. """
@@ -267,7 +276,7 @@ class Tower():
         self.price += self.price // 2
 
     def draw(self, stdscr):
-        stdscr.addstr(self.row, self.col * CELL_WIDTH, self.image)
+        stdscr.addstr(self.row, self.col * CELL_WIDTH, self.image_set[self.image])
 
 
 class GameController():
@@ -357,11 +366,20 @@ class GameController():
                 creep.draw(self.stdscr)
         self.creeps = temp_creeps
 
+    def is_free_place_for_tower(self, row=None, col=None):
+        """ Check if tower can be built in current cursor's place. """
+        if not row and not col:
+            row = self.cursor.row
+            col = self.cursor.col
+        for tower in self.towers:
+            if tower.row == row and tower.col == col:
+                return False
+        return self.field[row][col] == 'w'
+
     def build_tower(self, tower):
         """ Build tower in current cursor's place. """
-        if self.field[self.cursor.row][self.cursor.col] == 'w':
+        if self.is_free_place_for_tower():
             if self.gold >= PRICES[tower]:
-                self.field[self.cursor.row][self.cursor.col] = 't%s' % (tower,)
                 self.towers.append(Tower(tower, self.cursor.row, self.cursor.col))
                 self.gold -= PRICES[tower]
 
@@ -371,7 +389,6 @@ class GameController():
         for tower in self.towers:
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
                 self.gold += tower.price // 2
-                self.field[self.cursor.row][self.cursor.col] = 'w'
             else:
                 new_tower_list.append(tower)
         self.towers = new_tower_list
@@ -430,6 +447,9 @@ class GameController():
         while True:
             if not self.pause:
                 self.draw_field()
+                for tower in self.towers:
+                    tower.draw(self.stdscr)
+
                 new_time = time.time()
                 if last_round and creep_count == 0:
                     raise ExitGame
@@ -443,8 +463,10 @@ class GameController():
                 if tick == FPS:
                     tick = 0
                     sec -= 1
+                    self.stdscr.addstr(CREEP_ROW, 0, ' ' * 100)
                     self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
                                                                    self.creep_hp,
+                                                                   sent_creeps,
                                                                    self.creep_count))
                     if spawn_on:
                         if sent_creeps < self.creep_count:
@@ -480,6 +502,7 @@ class GameController():
                 self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
                 status = STATUS_LINE % (self.gold, self.level_round,
                                         boss_hp, self.lifes, self.kills)
+                self.stdscr.addstr(STATUS_LINE_ROW, 0, ' ' * 100)
                 self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
                 self.show_object_under_cursor()
                 self.stdscr.refresh()
