@@ -8,12 +8,20 @@ import time
 MAX_ROWS, MAX_COLS = 25, 25
 CELL_WIDTH = 3
 
+# colors
+RED = 1
+GREEN = 2
+BLUE = 3
+YELLOW = 4
+WHITE = 5
+
 CREEP_IMAGE = ' @ '
 TOWER_IMAGE_1 = ('***', ' **', '** ')
 TOWER_IMAGE_2 = (':|:', ':-:', '.|.')
 TOWER_IMAGE_3 = ('o-o', '0-0', 'o=o')
 
-FIElD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # '}
+FIELD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # '}
+FIELD_COLOR = {'.': WHITE, 'w': YELLOW, 's': RED, 'e': RED, 'b': BLUE}
 
 TIME_DELAY = 100
 
@@ -214,7 +222,8 @@ class Creep():
         self.col = next_col
 
     def draw(self, stdscr):
-        stdscr.addstr(self.row, self.col * CELL_WIDTH, CREEP_IMAGE)
+        stdscr.addstr(self.row, self.col * CELL_WIDTH, CREEP_IMAGE,
+                      curses.color_pair(RED))
 
     def get_damage(self, damage):
         """ Receive damage from towers. """
@@ -276,7 +285,8 @@ class Tower():
         self.price += self.price // 2
 
     def draw(self, stdscr):
-        stdscr.addstr(self.row, self.col * CELL_WIDTH, self.image_set[self.image])
+        stdscr.addstr(self.row, self.col * CELL_WIDTH,
+                      self.image_set[self.image], curses.color_pair(GREEN))
 
 
 class GameController():
@@ -291,8 +301,10 @@ class GameController():
         """ Draw game field. """
         for row in range(self.field_rows):
             for col in range(self.field_cols):
+                cell = self.field[row][col]
                 self.stdscr.addstr(row, col * CELL_WIDTH,
-                                   FIElD_IMAGE[self.field[row][col]])
+                                   FIELD_IMAGE[cell],
+                                   curses.color_pair(FIELD_COLOR[cell]))
 
     def setup_level(self, level):
         """ Load appropriate map, nullify all stats. """
@@ -553,6 +565,12 @@ class GameController():
 def main(stdscr):
     # hide cursor by setting visibility to 0
     curses.curs_set(0)
+    curses.start_color()
+    curses.init_pair(WHITE, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(RED, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(BLUE, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(YELLOW, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     game = GameController(stdscr)
     game.start_game()
 
