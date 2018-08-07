@@ -33,9 +33,9 @@ TOWERS = {'c': {'damage': 4, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
 
 PRICES = {'c': 5, 'm': 20, 's': 50}
 #Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 25, 'speed': 3},
-                 'm': {'damage': 60, 'speed': 2},
-                 's': {'damage': 100, 'range': 1}}
+UPGRADE_STATS = {'c': {'damage': 30, 'speed': 3},
+                 'm': {'damage': 70, 'speed': 2},
+                 's': {'damage': 150, 'range': 1}}
 
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
             "space - send creeps now, costs: c - %s, m - %s, s - %s" \
@@ -43,7 +43,7 @@ HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper
 
 STATUS_LINE = "Gold: %s  Round: %s  Boss hp: %s  Lifes: %s  Kills: %s"
 
-CREEP_INFO = 'Time before creep wave: %s. Creeps hp: %s,  number: %s/%s'
+CREEP_INFO = 'Time before creep wave: %s. Creeps hp: %s,  sent creeps: %s/%s'
 
 ERROR_ROW = 26
 CREEP_ROW = 27
@@ -57,6 +57,7 @@ TIME_BETWEEN_WAVES = 60
 
 FPS = 60
 ATTACK_SPEED_POINTS = 60
+MOVE_SPEED_POINTS = 60
 
 LIFES = 20
 
@@ -64,6 +65,8 @@ MAX_ROUNDS = 50
 CREEP_COUNT = 30
 START_CREEP_HP = 100
 START_CREEP_REWARD = 1
+START_CREEP_SPEED = 2
+CREEP_SPEED_UPGRADE = 0.1
 CREEP_HP_UPGRADE_PERCENTAGE = 75
 BOSS_HP_MULTIPLY = 50
 BOSS_REWARD_MULTIPLY = 50
@@ -210,16 +213,22 @@ class Creep():
 
     """ Class represents creep, which is moving from start to end point. """
 
-    def __init__(self, start_row, start_col, hp, reward, boss=False):
+    def __init__(self, start_row, start_col, hp, reward, speed=1, boss=False):
         self.row = start_row
         self.col = start_col
         self.hp = hp
         self.reward = reward
         self.boss = boss
+        self.speed = speed
+        self.move_points = 0
 
     def move(self, next_row, next_col):
-        self.row = next_row
-        self.col = next_col
+        if self.move_points >= MOVE_SPEED_POINTS:
+            self.row = next_row
+            self.col = next_col
+            self.move_points = 0
+        else:
+            self.move_points += self.speed
 
     def draw(self, stdscr):
         stdscr.addstr(self.row, self.col * CELL_WIDTH, CREEP_IMAGE,
@@ -337,14 +346,18 @@ class GameController():
             self.creep_reward = START_CREEP_REWARD
             self.temp_creep_reward = START_CREEP_REWARD
             self.creep_count = CREEP_COUNT
+            self.creep_speed = START_CREEP_SPEED
+            self.temp_creep_speed = START_CREEP_SPEED
         else:
             self.creep_hp = self.temp_creep_hp
             self.creep_reward = self.temp_creep_reward
+            self.creep_speed = self.temp_creep_speed
             if self.boss_round:
                 self.creep_count = 1
                 self.temp_creep_hp = self.creep_hp
                 self.creep_hp *= BOSS_HP_MULTIPLY
                 self.creep_reward *= BOSS_REWARD_MULTIPLY
+                self.creep_speed = 1
             else:
                 self.creep_count = CREEP_COUNT
                 self.creep_hp += self.creep_hp * CREEP_HP_UPGRADE_PERCENTAGE // 100
@@ -352,11 +365,14 @@ class GameController():
                 self.creep_reward += self.creep_reward * \
                                      CREEP_REWARD_MULTIPLY_PERCENTAGE // 100 or 1
                 self.temp_creep_reward = self.creep_reward
+                self.creep_speed += CREEP_SPEED_UPGRADE
+                self.temp_creep_speed = self.creep_speed
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
         self.creeps.append(Creep(self.start_row, self.start_col, self.creep_hp,
-                                 self.creep_reward, self.boss_round))
+                                 self.creep_reward, speed=self.creep_speed,
+                                 boss=self.boss_round))
         if self.boss_round:
             self.boss = self.creeps[0]
         else:
@@ -428,6 +444,7 @@ class GameController():
             else:
                 alive_creeps.append(creep)
         self.creeps = alive_creeps
+        self.move_creeps()
 
     def show_object_under_cursor(self):
         tower_info_template = 'Tower\n\nDamage: %s\nRange: %s\nSpeed: %s\n'\
@@ -444,6 +461,12 @@ class GameController():
                 for line in obj_info.split('\n'):
                     self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
                     offset += 1
+
+    def is_start_free(self):
+        for creep in self.creeps:
+            if creep.row == self.start_row and creep.col == self.start_col:
+                return False
+        return True
 
     def main_loop(self):
         tick = 0
@@ -472,24 +495,25 @@ class GameController():
                     self.action_per_time_tick(creep_count)
                     creep_count = len(self.creeps)
 
-                if tick == FPS:
-                    tick = 0
-                    sec -= 1
+                    if spawn_on:
+                        if sent_creeps < self.creep_count:
+                            if self.is_start_free():
+                                self.spawn_creep()
+                                sent_creeps += 1
+                        else:
+                            spawn_on = False
+                            sent_creeps = 0
+                            send_wave_finish = True
+
                     self.stdscr.addstr(CREEP_ROW, 0, ' ' * 100)
                     self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
                                                                    self.creep_hp,
                                                                    sent_creeps,
                                                                    self.creep_count))
-                    if spawn_on:
-                        if sent_creeps < self.creep_count:
-                            self.spawn_creep()
-                            sent_creeps += 1
-                        else:
-                            spawn_on = False
-                            sent_creeps = 0
-                            send_wave_finish = True
-                    self.move_creeps()
 
+                if tick == FPS:
+                    tick = 0
+                    sec -= 1
 
                 if sec == 0:
                     sec = TIME_BETWEEN_WAVES
