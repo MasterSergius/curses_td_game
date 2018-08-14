@@ -15,7 +15,7 @@ BLUE = 3
 YELLOW = 4
 WHITE = 5
 
-CREEP_IMAGE = ' @ '
+CREEP_IMAGE = (' @ ', ' & ')
 TOWER_IMAGE_1 = ('***', ' **', '** ')
 TOWER_IMAGE_2 = (':|:', ':-:', '.|.')
 TOWER_IMAGE_3 = ('o-o', '0-0', 'o=o')
@@ -27,28 +27,32 @@ TIME_DELAY = 100
 
 START_GOLD = 50
 
-TOWERS = {'c': {'damage': 4, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
-          'm': {'damage': 4, 'speed': 2, 'range': 5, 'images': TOWER_IMAGE_2},
+TOWERS = {'c': {'damage': 1, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
+          'm': {'damage': 1, 'speed': 2, 'range': 5, 'images': TOWER_IMAGE_2},
           's': {'damage': 50, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3}}
 
 PRICES = {'c': 5, 'm': 20, 's': 50}
 #Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 30, 'speed': 3},
-                 'm': {'damage': 70, 'speed': 2},
+UPGRADE_STATS = {'c': {'damage': 40, 'speed': 3},
+                 'm': {'damage': 60, 'speed': 2},
                  's': {'damage': 150, 'range': 1}}
 
+TOWER_UPGRADE_PRICE_PERCENTAGE = 40
+TOWER_DESTROY_PRICE_PERCENTAGE = 50
+
 HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
-            "space - send creeps now, costs: c - %s, m - %s, s - %s" \
+            "u - upgrade tower, d - destroy tower, space - send creeps now\n"\
+            "costs: chainsow tower - %s, minigun tower - %s, sniper tower - %s" \
             % (PRICES['c'], PRICES['m'], PRICES['s'])
 
-STATUS_LINE = "Gold: %s  Round: %s  Boss hp: %s  Lifes: %s  Kills: %s"
+STATUS_LINE = "Gold: %s  Round: %s/%s  Boss hp: %s  Lifes: %s  Kills: %s"
 
 CREEP_INFO = 'Time before creep wave: %s. Creeps hp: %s,  sent creeps: %s/%s'
 
 ERROR_ROW = 26
 CREEP_ROW = 27
 STATUS_LINE_ROW = 28
-HELP_INFO_ROW = 29
+HELP_INFO_ROW = 30
 
 OBJECT_INFO_ROW = 5
 OBJECT_INFO_COL = 80
@@ -67,7 +71,7 @@ START_CREEP_HP = 100
 START_CREEP_REWARD = 1
 START_CREEP_SPEED = 2
 CREEP_SPEED_UPGRADE = 0.1
-CREEP_HP_UPGRADE_PERCENTAGE = 75
+CREEP_HP_UPGRADE_PERCENTAGE = 60
 BOSS_HP_MULTIPLY = 50
 BOSS_REWARD_MULTIPLY = 50
 CREEP_REWARD_MULTIPLY_PERCENTAGE = 25
@@ -221,22 +225,32 @@ class Creep():
         self.boss = boss
         self.speed = speed
         self.move_points = 0
+        self.image_set = CREEP_IMAGE
+        self.image = 0
 
     def move(self, next_row, next_col):
         if self.move_points >= MOVE_SPEED_POINTS:
             self.row = next_row
             self.col = next_col
             self.move_points = 0
+            self.image = 0
         else:
             self.move_points += self.speed
 
+    def _next_image(self):
+        """ Cycle over images to simulate animation. """
+        self.image += 1
+        if self.image >= len(self.image_set):
+            self.image = 0
+
     def draw(self, stdscr):
-        stdscr.addstr(self.row, self.col * CELL_WIDTH, CREEP_IMAGE,
+        stdscr.addstr(self.row, self.col * CELL_WIDTH, self.image_set[self.image],
                       curses.color_pair(RED))
 
     def get_damage(self, damage):
         """ Receive damage from towers. """
         self.hp -= damage
+        self._next_image()
         if self.hp < 0:
             self.hp == 0
 
@@ -288,10 +302,12 @@ class Tower():
 
     def upgrade(self):
         """ Upgrade tower stats. """
-        self.damage += self.damage * UPGRADE_STATS[self.tower_type].get('damage', 0) // 100
+        dmg_upgrade = (self.damage * UPGRADE_STATS[self.tower_type].get('damage', 0)
+                       // 100 or 1)
+        self.damage += dmg_upgrade
         self.speed += UPGRADE_STATS[self.tower_type].get('speed', 0)
         self.range += UPGRADE_STATS[self.tower_type].get('range', 0)
-        self.price += self.price // 2
+        self.price += self.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100
 
     def draw(self, stdscr):
         stdscr.addstr(self.row, self.col * CELL_WIDTH,
@@ -416,7 +432,7 @@ class GameController():
         new_tower_list = []
         for tower in self.towers:
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
-                self.gold += tower.price // 2
+                self.gold += tower.price * TOWER_DESTROY_PRICE_PERCENTAGE // 100
             else:
                 new_tower_list.append(tower)
         self.towers = new_tower_list
@@ -425,7 +441,7 @@ class GameController():
         """ Upgrade tower in current cursor's place. """
         for tower in self.towers:
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
-                upgrade_price = tower.price // 2
+                upgrade_price = tower.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100
                 if self.gold >= upgrade_price:
                     tower.upgrade()
                     self.gold -= upgrade_price
@@ -456,7 +472,8 @@ class GameController():
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
                 obj_info = tower_info_template \
                            % (tower.damage, tower.range, tower.speed,
-                              tower.price // 2, tower.price // 2)
+                              tower.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100,
+                              tower.price * TOWER_DESTROY_PRICE_PERCENTAGE // 100)
                 offset = 0
                 for line in obj_info.split('\n'):
                     self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
@@ -536,7 +553,7 @@ class GameController():
 
                 self.cursor.draw(self.stdscr)
                 self.stdscr.addstr(HELP_INFO_ROW, 0, HELP_INFO)
-                status = STATUS_LINE % (self.gold, self.level_round,
+                status = STATUS_LINE % (self.gold, self.level_round, MAX_ROUNDS,
                                         boss_hp, self.lifes, self.kills)
                 self.stdscr.addstr(STATUS_LINE_ROW, 0, ' ' * 100)
                 self.stdscr.addstr(STATUS_LINE_ROW, 0, status)
