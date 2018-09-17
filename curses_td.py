@@ -2,6 +2,7 @@
 
 import copy
 import curses
+import random
 import time
 
 
@@ -19,6 +20,7 @@ CREEP_IMAGE = (' @ ', ' & ')
 TOWER_IMAGE_1 = ('***', ' **', '** ')
 TOWER_IMAGE_2 = (':|:', ':-:', '.|.')
 TOWER_IMAGE_3 = ('o-o', '0-0', 'o=o')
+TOWER_IMAGE_4 = ('>O<', '=O=', '>*<')
 
 FIELD_IMAGE = {'.': ' . ', 'w': ' + ', 's': 'o> ', 'e': ' >o', 'b': ' # '}
 FIELD_COLOR = {'.': WHITE, 'w': YELLOW, 's': RED, 'e': RED, 'b': BLUE}
@@ -28,22 +30,26 @@ TIME_DELAY = 100
 START_GOLD = 50
 
 TOWERS = {'c': {'damage': 1, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
-          'm': {'damage': 1, 'speed': 2, 'range': 5, 'images': TOWER_IMAGE_2},
-          's': {'damage': 50, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3}}
+          'm': {'damage': 4, 'speed': 2, 'range': 6, 'images': TOWER_IMAGE_2},
+          's': {'damage': 75, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
+                'special': 1},
+          'i': {'damage': 1, 'speed': 1, 'range': 3, 'images': TOWER_IMAGE_4,
+                'special': 5}}
 
-PRICES = {'c': 5, 'm': 20, 's': 50}
-#Upgrade damage in percent from main damage
-UPGRADE_STATS = {'c': {'damage': 40, 'speed': 3},
-                 'm': {'damage': 60, 'speed': 2},
-                 's': {'damage': 150, 'range': 1}}
+PRICES = {'c': 5, 'm': 20, 's': 50, 'i': 100}
+#Upgrade damage and speed in percent from current stats
+UPGRADE_STATS = {'c': {'damage': 50, 'speed': 25},
+                 'm': {'damage': 50, 'speed': 40},
+                 's': {'damage': 90, 'range': 1, 'special': 5},
+                 'i': {'damage': 20, 'speed': 20, 'special': 30}}
 
-TOWER_UPGRADE_PRICE_PERCENTAGE = 40
+TOWER_UPGRADE_PRICE_PERCENTAGE = 50
 TOWER_DESTROY_PRICE_PERCENTAGE = 50
 
-HELP_INFO = "c - build chainsaw tower, m - build minigun tower, s - build sniper tower\n"\
+HELP_INFO = "c - chainsaw tower, m - minigun tower, s - sniper tower, i - ice tower\n"\
             "u - upgrade tower, d - destroy tower, space - send creeps now\n"\
-            "costs: chainsow tower - %s, minigun tower - %s, sniper tower - %s" \
-            % (PRICES['c'], PRICES['m'], PRICES['s'])
+            "tower costs: chainsaw - %s, minigun - %s, sniper - %s, ice - %s" \
+            % (PRICES['c'], PRICES['m'], PRICES['s'], PRICES['i'])
 
 STATUS_LINE = "Gold: %s  Round: %s/%s  Boss hp: %s  Lifes: %s  Kills: %s"
 
@@ -62,10 +68,12 @@ TIME_BETWEEN_WAVES = 60
 FPS = 60
 ATTACK_SPEED_POINTS = 60
 MOVE_SPEED_POINTS = 60
+CRIT_MULTIPLIER = 10
 
 LIFES = 20
 
 MAX_ROUNDS = 50
+BOSS_ROUND = 10
 CREEP_COUNT = 30
 START_CREEP_HP = 100
 START_CREEP_REWARD = 1
@@ -74,7 +82,7 @@ CREEP_SPEED_UPGRADE = 0.1
 CREEP_HP_UPGRADE_PERCENTAGE = 60
 BOSS_HP_MULTIPLY = 50
 BOSS_REWARD_MULTIPLY = 50
-CREEP_REWARD_MULTIPLY_PERCENTAGE = 25
+CREEP_REWARD_MULTIPLY_PERCENTAGE = 30
 
 
 class ExitGame(Exception):
@@ -224,6 +232,7 @@ class Creep():
         self.reward = reward
         self.boss = boss
         self.speed = speed
+        self.original_speed = speed
         self.move_points = 0
         self.image_set = CREEP_IMAGE
         self.image = 0
@@ -253,6 +262,14 @@ class Creep():
         self._next_image()
         if self.hp < 0:
             self.hp == 0
+
+    def slow_effect(self, slow_points):
+        self.speed = self.original_speed - slow_points
+        if self.speed < 1:
+            self.speed = 1
+
+    def clear_effects(self):
+        self.speed = self.original_speed
 
 
 class Tower():
@@ -302,16 +319,141 @@ class Tower():
 
     def upgrade(self):
         """ Upgrade tower stats. """
-        dmg_upgrade = (self.damage * UPGRADE_STATS[self.tower_type].get('damage', 0)
-                       // 100 or 1)
-        self.damage += dmg_upgrade
-        self.speed += UPGRADE_STATS[self.tower_type].get('speed', 0)
+        if 'damage' in UPGRADE_STATS[self.tower_type]:
+            dmg_upgrade = (self.damage * UPGRADE_STATS[self.tower_type]['damage']
+                           // 100 or 1)
+            self.damage += dmg_upgrade
+        if 'speed' in UPGRADE_STATS[self.tower_type]:
+            speed_upgrade = (self.speed * UPGRADE_STATS[self.tower_type]['speed']
+                             // 100 or 1)
+            self.speed += speed_upgrade
         self.range += UPGRADE_STATS[self.tower_type].get('range', 0)
         self.price += self.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100
 
     def draw(self, stdscr):
         stdscr.addstr(self.row, self.col * CELL_WIDTH,
                       self.image_set[self.image], curses.color_pair(GREEN))
+
+    def get_special(self):
+        return 'no specials'
+
+
+class TowerChainsaw(Tower):
+    """ Chainsaw tower damage multiple creeps at once. """
+
+    def find_target(self, creeps):
+        self.target = []
+        for creep in creeps:
+            if (abs(creep.row - self.row) <= self.range and
+                abs(creep.col - self.col) <= self.range):
+                self.target.append(creep)
+
+    def attack(self, creeps):
+        self.find_target(creeps)
+        if self.target:
+            while self.speed_points >= ATTACK_SPEED_POINTS:
+                for target in self.target:
+                    target.get_damage(self.damage)
+                self.speed_points -= ATTACK_SPEED_POINTS
+            else:
+                self.speed_points += self.speed
+            self._next_image()
+        else:
+            self.image = 0
+
+    def get_special(self):
+        return 'damage all in range'
+
+
+class TowerMinigun(Tower):
+    """ Minigun tower. No specials. """
+
+    pass
+
+
+class TowerSniper(Tower):
+    """ Sniper tower. Have chance for critical shot. """
+
+    def __init__(self, tower_type, row, col):
+        super().__init__(tower_type, row, col)
+        self.crit_chance = TOWERS[self.tower_type]['special']
+
+    def attack(self, creeps):
+        """ Attack creep if it is possible. """
+        self.find_target(creeps)
+        if self.target:
+            while self.speed_points >= ATTACK_SPEED_POINTS:
+                chance = random.randint(0, 100)
+                damage = (self.damage * CRIT_MULTIPLIER
+                          if chance <= self.crit_chance else self.damage)
+                self.target.get_damage(damage)
+                self.speed_points -= ATTACK_SPEED_POINTS
+            else:
+                self.speed_points += self.speed
+            self._next_image()
+        else:
+            self.image = 0
+
+    def upgrade(self):
+        super().upgrade()
+        crit = (self.crit_chance * UPGRADE_STATS[self.tower_type]['special']
+                // 100 or 1)
+        self.crit_chance += crit
+
+    def get_special(self):
+        return '%sx crit, %s%% chance' % (CRIT_MULTIPLIER, self.crit_chance)
+
+
+class TowerIce(Tower):
+    """ Ice tower. Slow multiple creeps. """
+
+    def __init__(self, tower_type, row, col):
+        super().__init__(tower_type, row, col)
+        self.slow_points = TOWERS[self.tower_type]['special']
+
+    def upgrade(self):
+        super().upgrade()
+        slow = (self.slow_points * UPGRADE_STATS[self.tower_type]['special']
+                // 100 or 1)
+        self.slow_points += slow
+
+    def find_target(self, creeps):
+        self.target = []
+        for creep in creeps:
+            if (abs(creep.row - self.row) <= self.range and
+                abs(creep.col - self.col) <= self.range):
+                self.target.append(creep)
+
+    def attack(self, creeps):
+        self.find_target(creeps)
+        if self.target:
+            while self.speed_points >= ATTACK_SPEED_POINTS:
+                for target in self.target:
+                    target.get_damage(self.damage)
+                    target.slow_effect(self.slow_points)
+                self.speed_points -= ATTACK_SPEED_POINTS
+            else:
+                self.speed_points += self.speed
+            self._next_image()
+        else:
+            self.image = 0
+
+    def get_special(self):
+        return 'slow in range, %s pts' % (self.slow_points,)
+
+
+class TowerFactory():
+    def __new__(self, tower_type, row, col):
+        if tower_type == 'c':
+            return TowerChainsaw(tower_type, row, col)
+        elif tower_type == 'm':
+            return TowerMinigun(tower_type, row, col)
+        elif tower_type == 's':
+            return TowerSniper(tower_type, row, col)
+        elif tower_type == 'i':
+            return TowerIce(tower_type, row, col)
+        else:
+            raise ValueError
 
 
 class GameController():
@@ -354,7 +496,7 @@ class GameController():
     def setup_round(self, round_number):
         """ Prepare next wave of creeps. """
         self.level_round = round_number + 1
-        self.boss_round = True if self.level_round % 5 == 0 else False
+        self.boss_round = True if self.level_round % BOSS_ROUND == 0 else False
 
         if self.level_round == 1:
             self.creep_hp = START_CREEP_HP
@@ -363,17 +505,17 @@ class GameController():
             self.temp_creep_reward = START_CREEP_REWARD
             self.creep_count = CREEP_COUNT
             self.creep_speed = START_CREEP_SPEED
-            self.temp_creep_speed = START_CREEP_SPEED
+            #self.temp_creep_speed = START_CREEP_SPEED
         else:
             self.creep_hp = self.temp_creep_hp
             self.creep_reward = self.temp_creep_reward
-            self.creep_speed = self.temp_creep_speed
+            #self.creep_speed = self.temp_creep_speed
             if self.boss_round:
                 self.creep_count = 1
                 self.temp_creep_hp = self.creep_hp
                 self.creep_hp *= BOSS_HP_MULTIPLY
                 self.creep_reward *= BOSS_REWARD_MULTIPLY
-                self.creep_speed = 1
+                #self.creep_speed = 1
             else:
                 self.creep_count = CREEP_COUNT
                 self.creep_hp += self.creep_hp * CREEP_HP_UPGRADE_PERCENTAGE // 100
@@ -382,7 +524,7 @@ class GameController():
                                      CREEP_REWARD_MULTIPLY_PERCENTAGE // 100 or 1
                 self.temp_creep_reward = self.creep_reward
                 self.creep_speed += CREEP_SPEED_UPGRADE
-                self.temp_creep_speed = self.creep_speed
+                #self.temp_creep_speed = self.creep_speed
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
@@ -424,7 +566,7 @@ class GameController():
         """ Build tower in current cursor's place. """
         if self.is_free_place_for_tower():
             if self.gold >= PRICES[tower]:
-                self.towers.append(Tower(tower, self.cursor.row, self.cursor.col))
+                self.towers.append(TowerFactory(tower, self.cursor.row, self.cursor.col))
                 self.gold -= PRICES[tower]
 
     def destroy_tower(self):
@@ -464,16 +606,18 @@ class GameController():
 
     def show_object_under_cursor(self):
         tower_info_template = 'Tower\n\nDamage: %s\nRange: %s\nSpeed: %s\n'\
-                              'Upgrade price: %s\nDestroy price: %s'
+                              'Upgrade price: %s\nDestroy price: %s\n'\
+                              'Special: %s'
         for offset in range(len(tower_info_template.split('\n'))):
-            self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, ' ' * 25)
+            self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, ' ' * 30)
             offset += 1
         for tower in self.towers:
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
                 obj_info = tower_info_template \
                            % (tower.damage, tower.range, tower.speed,
                               tower.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100,
-                              tower.price * TOWER_DESTROY_PRICE_PERCENTAGE // 100)
+                              tower.price * TOWER_DESTROY_PRICE_PERCENTAGE // 100,
+                              tower.get_special())
                 offset = 0
                 for line in obj_info.split('\n'):
                     self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
@@ -529,6 +673,8 @@ class GameController():
                                                                    self.creep_count))
 
                 if tick == FPS:
+                    for creep in self.creeps:
+                        creep.clear_effects()
                     tick = 0
                     sec -= 1
 
@@ -582,7 +728,8 @@ class GameController():
                 if c in (curses.KEY_RIGHT, ord('l'), ord('L')):
                     self.cursor.move_right()
 
-                if c in (ord('c'), ord('m'), ord('s'), ord('C'), ord('M'), ord('S')):
+                if c in (ord('c'), ord('C'), ord('m'), ord('M'),
+                         ord('s'), ord('S'), ord('i'), ord('I')):
                     self.build_tower(chr(c).lower())
 
                 if c in (ord('d'), ord('D')):
