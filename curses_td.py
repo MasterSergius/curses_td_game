@@ -29,22 +29,22 @@ TIME_DELAY = 100
 
 START_GOLD = 50
 
-TOWERS = {'c': {'damage': 1, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
-          'm': {'damage': 4, 'speed': 2, 'range': 6, 'images': TOWER_IMAGE_2},
+TOWERS = {'c': {'damage': 2, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
+          'm': {'damage': 3, 'speed': 3, 'range': 6, 'images': TOWER_IMAGE_2},
           's': {'damage': 75, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
-                'special': 1},
+                'special': 3},
           'i': {'damage': 1, 'speed': 1, 'range': 3, 'images': TOWER_IMAGE_4,
                 'special': 5}}
 
 PRICES = {'c': 5, 'm': 20, 's': 50, 'i': 100}
 #Upgrade damage and speed in percent from current stats
-UPGRADE_STATS = {'c': {'damage': 50, 'speed': 25},
-                 'm': {'damage': 50, 'speed': 40},
+UPGRADE_STATS = {'c': {'damage': 50, 'speed': 30},
+                 'm': {'damage': 50, 'speed': 50},
                  's': {'damage': 90, 'range': 1, 'special': 5},
                  'i': {'damage': 20, 'speed': 20, 'special': 30}}
 
 TOWER_UPGRADE_PRICE_PERCENTAGE = 50
-TOWER_DESTROY_PRICE_PERCENTAGE = 50
+TOWER_DESTROY_PRICE_PERCENTAGE = 75
 
 HELP_INFO = "c - chainsaw tower, m - minigun tower, s - sniper tower, i - ice tower\n"\
             "u - upgrade tower, d - destroy tower, space - send creeps now\n"\
@@ -82,7 +82,7 @@ CREEP_SPEED_UPGRADE = 0.1
 CREEP_HP_UPGRADE_PERCENTAGE = 60
 BOSS_HP_MULTIPLY = 50
 BOSS_REWARD_MULTIPLY = 50
-CREEP_REWARD_MULTIPLY_PERCENTAGE = 30
+CREEP_REWARD_MULTIPLY_PERCENTAGE = 20
 
 
 class ExitGame(Exception):
@@ -505,17 +505,14 @@ class GameController():
             self.temp_creep_reward = START_CREEP_REWARD
             self.creep_count = CREEP_COUNT
             self.creep_speed = START_CREEP_SPEED
-            #self.temp_creep_speed = START_CREEP_SPEED
         else:
             self.creep_hp = self.temp_creep_hp
             self.creep_reward = self.temp_creep_reward
-            #self.creep_speed = self.temp_creep_speed
             if self.boss_round:
                 self.creep_count = 1
                 self.temp_creep_hp = self.creep_hp
                 self.creep_hp *= BOSS_HP_MULTIPLY
                 self.creep_reward *= BOSS_REWARD_MULTIPLY
-                #self.creep_speed = 1
             else:
                 self.creep_count = CREEP_COUNT
                 self.creep_hp += self.creep_hp * CREEP_HP_UPGRADE_PERCENTAGE // 100
@@ -524,7 +521,6 @@ class GameController():
                                      CREEP_REWARD_MULTIPLY_PERCENTAGE // 100 or 1
                 self.temp_creep_reward = self.creep_reward
                 self.creep_speed += CREEP_SPEED_UPGRADE
-                #self.temp_creep_speed = self.creep_speed
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
