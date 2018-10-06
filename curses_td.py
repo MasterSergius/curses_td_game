@@ -29,22 +29,23 @@ TIME_DELAY = 100
 
 START_GOLD = 50
 
-TOWERS = {'c': {'damage': 2, 'speed': 3, 'range': 1, 'images': TOWER_IMAGE_1},
-          'm': {'damage': 3, 'speed': 3, 'range': 6, 'images': TOWER_IMAGE_2},
-          's': {'damage': 75, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
-                'special': 3},
+TOWERS = {'c': {'damage': 5, 'speed': 5, 'range': 1, 'images': TOWER_IMAGE_1},
+          'm': {'damage': 7, 'speed': 7, 'range': 6, 'images': TOWER_IMAGE_2},
+          's': {'damage': 100, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
+                'special': 5},
           'i': {'damage': 1, 'speed': 1, 'range': 3, 'images': TOWER_IMAGE_4,
-                'special': 5}}
+                'special': 1}}
 
 PRICES = {'c': 5, 'm': 20, 's': 50, 'i': 100}
-#Upgrade damage and speed in percent from current stats
-UPGRADE_STATS = {'c': {'damage': 50, 'speed': 30},
-                 'm': {'damage': 50, 'speed': 50},
-                 's': {'damage': 90, 'range': 1, 'special': 5},
-                 'i': {'damage': 20, 'speed': 20, 'special': 30}}
+UPGRADE_STATS = {'c': {'damage': 2, 'speed': 2},
+                 'm': {'damage': 3, 'speed': 3},
+                 's': {'damage': 200, 'range': 1, 'special': 1},
+                 'i': {'damage': 1, 'speed': 1, 'special': 2}}
 
-TOWER_UPGRADE_PRICE_PERCENTAGE = 50
-TOWER_DESTROY_PRICE_PERCENTAGE = 75
+TOWER_UPGRADE_PRICE_MULTIPLIER = 2
+TOWER_DESTROY_PRICE_PERCENTAGE = 90
+CRIT_MULTIPLIER = 20
+TOWER_MAX_LEVEL = 10
 
 HELP_INFO = "c - chainsaw tower, m - minigun tower, s - sniper tower, i - ice tower\n"\
             "u - upgrade tower, d - destroy tower, space - send creeps now\n"\
@@ -68,7 +69,6 @@ TIME_BETWEEN_WAVES = 60
 FPS = 60
 ATTACK_SPEED_POINTS = 60
 MOVE_SPEED_POINTS = 60
-CRIT_MULTIPLIER = 10
 
 LIFES = 20
 
@@ -79,10 +79,11 @@ START_CREEP_HP = 100
 START_CREEP_REWARD = 1
 START_CREEP_SPEED = 2
 CREEP_SPEED_UPGRADE = 0.1
-CREEP_HP_UPGRADE_PERCENTAGE = 60
+CREEP_HP_LEVEL_MULTIPLIER = 100
 BOSS_HP_MULTIPLY = 50
-BOSS_REWARD_MULTIPLY = 50
-CREEP_REWARD_MULTIPLY_PERCENTAGE = 20
+BOSS_REWARD_MULTIPLY = 30
+BOSS_LIFES = 5
+CREEP_REWARD_UPGRADE = 1
 
 
 class ExitGame(Exception):
@@ -288,6 +289,7 @@ class Tower():
         self.col = col
         self.speed_points = FPS
         self.price = PRICES[tower_type]
+        self.level = 1
 
     def _next_image(self):
         """ Cycle over images to simulate animation. """
@@ -320,15 +322,12 @@ class Tower():
     def upgrade(self):
         """ Upgrade tower stats. """
         if 'damage' in UPGRADE_STATS[self.tower_type]:
-            dmg_upgrade = (self.damage * UPGRADE_STATS[self.tower_type]['damage']
-                           // 100 or 1)
-            self.damage += dmg_upgrade
+            self.damage += UPGRADE_STATS[self.tower_type]['damage'] * self.level
         if 'speed' in UPGRADE_STATS[self.tower_type]:
-            speed_upgrade = (self.speed * UPGRADE_STATS[self.tower_type]['speed']
-                             // 100 or 1)
-            self.speed += speed_upgrade
+            self.speed += UPGRADE_STATS[self.tower_type]['speed'] * self.level
         self.range += UPGRADE_STATS[self.tower_type].get('range', 0)
-        self.price += self.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100
+        self.price += self.level * PRICES[self.tower_type] * TOWER_UPGRADE_PRICE_MULTIPLIER
+        self.level += 1
 
     def draw(self, stdscr):
         stdscr.addstr(self.row, self.col * CELL_WIDTH,
@@ -396,9 +395,7 @@ class TowerSniper(Tower):
 
     def upgrade(self):
         super().upgrade()
-        crit = (self.crit_chance * UPGRADE_STATS[self.tower_type]['special']
-                // 100 or 1)
-        self.crit_chance += crit
+        self.crit_chance += UPGRADE_STATS[self.tower_type]['special']
 
     def get_special(self):
         return '%sx crit, %s%% chance' % (CRIT_MULTIPLIER, self.crit_chance)
@@ -413,9 +410,7 @@ class TowerIce(Tower):
 
     def upgrade(self):
         super().upgrade()
-        slow = (self.slow_points * UPGRADE_STATS[self.tower_type]['special']
-                // 100 or 1)
-        self.slow_points += slow
+        self.slow_points += UPGRADE_STATS[self.tower_type]['special']
 
     def find_target(self, creeps):
         self.target = []
@@ -492,6 +487,10 @@ class GameController():
         self.towers = []
         self.gold = START_GOLD
         self.kills = 0
+        # used for initial creep info
+        self.creep_hp = START_CREEP_HP
+        self.level_round = 0
+        self.creep_count = 0
 
     def setup_round(self, round_number):
         """ Prepare next wave of creeps. """
@@ -515,10 +514,9 @@ class GameController():
                 self.creep_reward *= BOSS_REWARD_MULTIPLY
             else:
                 self.creep_count = CREEP_COUNT
-                self.creep_hp += self.creep_hp * CREEP_HP_UPGRADE_PERCENTAGE // 100
+                self.creep_hp += (self.level_round - 1) * CREEP_HP_LEVEL_MULTIPLIER
                 self.temp_creep_hp = self.creep_hp
-                self.creep_reward += self.creep_reward * \
-                                     CREEP_REWARD_MULTIPLY_PERCENTAGE // 100 or 1
+                self.creep_reward += CREEP_REWARD_UPGRADE
                 self.temp_creep_reward = self.creep_reward
                 self.creep_speed += CREEP_SPEED_UPGRADE
 
@@ -538,8 +536,11 @@ class GameController():
         for creep in self.creeps:
             cell_index = self.creep_path.index((creep.row, creep.col))
             if cell_index >= len(self.creep_path) - 1:
-                self.lifes -= 1
-                if self.lifes == 0:
+                if creep.boss:
+                    self.lifes -= BOSS_LIFES
+                else:
+                    self.lifes -= 1
+                if self.lifes <= 0:
                     raise ExitGame
             else:
                 temp_creeps.append(creep)
@@ -579,8 +580,8 @@ class GameController():
         """ Upgrade tower in current cursor's place. """
         for tower in self.towers:
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
-                upgrade_price = tower.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100
-                if self.gold >= upgrade_price:
+                upgrade_price = tower.level * PRICES[tower.tower_type] * TOWER_UPGRADE_PRICE_MULTIPLIER
+                if self.gold >= upgrade_price and tower.level < TOWER_MAX_LEVEL:
                     tower.upgrade()
                     self.gold -= upgrade_price
                 break
@@ -603,7 +604,7 @@ class GameController():
     def show_object_under_cursor(self):
         tower_info_template = 'Tower\n\nDamage: %s\nRange: %s\nSpeed: %s\n'\
                               'Upgrade price: %s\nDestroy price: %s\n'\
-                              'Special: %s'
+                              'Special: %s\nLevel: %s/%s'
         for offset in range(len(tower_info_template.split('\n'))):
             self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, ' ' * 30)
             offset += 1
@@ -611,9 +612,9 @@ class GameController():
             if tower.row == self.cursor.row and tower.col == self.cursor.col:
                 obj_info = tower_info_template \
                            % (tower.damage, tower.range, tower.speed,
-                              tower.price * TOWER_UPGRADE_PRICE_PERCENTAGE // 100,
+                              tower.level  * PRICES[tower.tower_type] * TOWER_UPGRADE_PRICE_MULTIPLIER,
                               tower.price * TOWER_DESTROY_PRICE_PERCENTAGE // 100,
-                              tower.get_special())
+                              tower.get_special(), tower.level, TOWER_MAX_LEVEL)
                 offset = 0
                 for line in obj_info.split('\n'):
                     self.stdscr.addstr(OBJECT_INFO_ROW + offset, OBJECT_INFO_COL, line)
@@ -632,7 +633,7 @@ class GameController():
         creep_count = 0
         spawn_on = False
         next_round = False
-        send_wave_finish = False
+        send_wave_finish = True
         sent_creeps = 0
         last_round = False
         self.boss = None
@@ -674,16 +675,13 @@ class GameController():
                     tick = 0
                     sec -= 1
 
-                if sec == 0:
-                    sec = TIME_BETWEEN_WAVES
-                    spawn_on = True
-                    next_round = True
-
-                if next_round and send_wave_finish:
-                    if self.level_round < MAX_ROUNDS:
+                if (sec == 0 or next_round) and send_wave_finish:
+                    if  self.level_round < MAX_ROUNDS:
                         self.setup_round(self.level_round)
                     else:
                         last_round = True
+                    sec = TIME_BETWEEN_WAVES
+                    spawn_on = True
                     next_round = False
                     send_wave_finish = False
 
@@ -711,8 +709,6 @@ class GameController():
 
             if not self.pause:
                 if c == ord(' '):
-                    sec = TIME_BETWEEN_WAVES
-                    spawn_on = True
                     next_round = True
 
                 if c in (curses.KEY_UP, ord('k'), ord('K')):
@@ -739,7 +735,6 @@ class GameController():
         self.stdscr.clear()
 
         self.setup_level(1)
-        self.setup_round(0)
         self.pause = False
         try:
             self.main_loop()
