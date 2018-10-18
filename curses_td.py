@@ -3,6 +3,7 @@
 import copy
 import curses
 import random
+import sys
 import time
 
 
@@ -29,7 +30,7 @@ TIME_DELAY = 100
 
 START_GOLD = 50
 
-TOWERS = {'c': {'damage': 5, 'speed': 5, 'range': 1, 'images': TOWER_IMAGE_1},
+TOWERS = {'c': {'damage': 6, 'speed': 6, 'range': 1, 'images': TOWER_IMAGE_1},
           'm': {'damage': 7, 'speed': 7, 'range': 6, 'images': TOWER_IMAGE_2},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
                 'special': 5},
@@ -37,7 +38,7 @@ TOWERS = {'c': {'damage': 5, 'speed': 5, 'range': 1, 'images': TOWER_IMAGE_1},
                 'special': 1}}
 
 PRICES = {'c': 5, 'm': 20, 's': 50, 'i': 100}
-UPGRADE_STATS = {'c': {'damage': 2, 'speed': 2},
+UPGRADE_STATS = {'c': {'damage': 1, 'speed': 1},
                  'm': {'damage': 3, 'speed': 3},
                  's': {'damage': 200, 'range': 1, 'special': 1},
                  'i': {'damage': 1, 'speed': 1, 'special': 2}}
@@ -734,12 +735,111 @@ class GameController():
         self.stdscr.nodelay(True)
         self.stdscr.clear()
 
-        self.setup_level(1)
         self.pause = False
         try:
             self.main_loop()
         except ExitGame:
             pass
+
+
+class MainMenu():
+
+    """ Class responsible for Main Menu which appears on start. """
+
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        self.top_row = 10
+        self.left_col = 20
+        self.cursor_row = 0
+        self.maps = [1, 2, 3, 4, 5]
+        self.difficulties = ['Easy', 'Medium', 'Hard']
+        self.selected_map = 0
+        self.selected_difficulty = 0
+        self.text_map_template = 'Select map: %s'
+        self.text_difficulty_template = 'Select difficulty: %s'
+        self.text_start = 'Start'
+        self.text_exit = 'Exit'
+
+    @property
+    def text_map(self):
+        return self.text_map_template % (self.maps[self.selected_map],)
+
+    @property
+    def text_difficulty(self):
+        return self.text_difficulty_template % (self.difficulties[self.selected_difficulty],)
+
+    def show_menu(self):
+        self.stdscr.addstr(self.top_row, self.left_col,
+                           self.text_map.center(30))
+        self.stdscr.addstr(self.top_row+1, self.left_col,
+                           self.text_difficulty.center(30))
+        self.stdscr.addstr(self.top_row+2, self.left_col,
+                           self.text_start.center(30))
+        self.stdscr.addstr(self.top_row+3, self.left_col,
+                           self.text_exit.center(30))
+
+    def show_cursor(self):
+        self.stdscr.addstr(self.top_row+self.cursor_row, self.left_col-1, '<',
+                           curses.color_pair(GREEN))
+        self.stdscr.addstr(self.top_row+self.cursor_row, self.left_col+30, '>',
+                           curses.color_pair(GREEN))
+
+    def hide_cursor(self):
+        self.stdscr.addstr(self.top_row+self.cursor_row, self.left_col-1, ' ')
+        self.stdscr.addstr(self.top_row+self.cursor_row, self.left_col+30, ' ')
+
+    def move_cursor(self, direction):
+        self.hide_cursor()
+        self.cursor_row += direction
+        # 4 menu items - [0..3]
+        if self.cursor_row < 0:
+            self.cursor_row = 3
+        if self.cursor_row > 3:
+            self.cursor_row = 0
+        self.show_cursor()
+
+    def scroll_item(self, direction):
+        if self.cursor_row == 0:
+            self.selected_map += direction
+            if self.selected_map < 0:
+                self.selected_map = len(self.maps) - 1
+            if self.selected_map > len(self.maps) - 1:
+                self.selected_map = 0
+
+        if self.cursor_row == 1:
+            self.selected_difficulty += direction
+            if self.selected_difficulty < 0:
+                self.selected_difficulty = len(self.difficulties) - 1
+            if self.selected_difficulty > len(self.difficulties) - 1:
+                self.selected_difficulty = 0
+
+    def enter_menu(self):
+        if self.cursor_row == 2:
+            game = GameController(self.stdscr)
+            game.setup_level(self.selected_map + 1)
+            game.start_game()
+        if self.cursor_row == 3:
+            sys.exit(0)
+
+    def main_loop(self):
+        while True:
+            self.show_menu()
+            self.show_cursor()
+            self.stdscr.refresh()
+
+            c = self.stdscr.getch()
+            if c in (curses.KEY_UP, ord('k'), ord('K')):
+                self.move_cursor(-1)
+            if c in (curses.KEY_DOWN, ord('j'), ord('J')):
+                self.move_cursor(1)
+            if c in (curses.KEY_LEFT, ord('h'), ord('H')):
+                self.scroll_item(-1)
+            if c in (curses.KEY_RIGHT, ord('l'), ord('L')):
+                self.scroll_item(1)
+
+            if c in (curses.KEY_ENTER, 10, 13):
+                self.enter_menu()
+
 
 def main(stdscr):
     # hide cursor by setting visibility to 0
@@ -750,8 +850,8 @@ def main(stdscr):
     curses.init_pair(GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(BLUE, curses.COLOR_BLUE, curses.COLOR_BLACK)
     curses.init_pair(YELLOW, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-    game = GameController(stdscr)
-    game.start_game()
+    menu = MainMenu(stdscr)
+    menu.main_loop()
 
 
 if __name__ == '__main__':
