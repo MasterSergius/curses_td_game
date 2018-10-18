@@ -86,6 +86,8 @@ BOSS_REWARD_MULTIPLY = 30
 BOSS_LIFES = 5
 CREEP_REWARD_UPGRADE = 1
 
+DIFFICULTY_HP_MULTIPLIER = {'easy': 0, 'medium': 0.25, 'hard': 0.5}
+
 
 class ExitGame(Exception):
     pass
@@ -469,7 +471,7 @@ class GameController():
                                    FIELD_IMAGE[cell],
                                    curses.color_pair(FIELD_COLOR[cell]))
 
-    def setup_level(self, level):
+    def setup_level(self, level, difficulty):
         """ Load appropriate map, nullify all stats. """
         map_name = 'map%s.txt' % (level,)
         gf = GameField()
@@ -492,6 +494,7 @@ class GameController():
         self.creep_hp = START_CREEP_HP
         self.level_round = 0
         self.creep_count = 0
+        self.difficulty_hp = DIFFICULTY_HP_MULTIPLIER[difficulty]
 
     def setup_round(self, round_number):
         """ Prepare next wave of creeps. """
@@ -520,6 +523,8 @@ class GameController():
                 self.creep_reward += CREEP_REWARD_UPGRADE
                 self.temp_creep_reward = self.creep_reward
                 self.creep_speed += CREEP_SPEED_UPGRADE
+        #modify creep hp according to difficulty
+        self.creep_hp += int(self.creep_hp * self.difficulty_hp)
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
@@ -664,11 +669,11 @@ class GameController():
                             sent_creeps = 0
                             send_wave_finish = True
 
-                    self.stdscr.addstr(CREEP_ROW, 0, ' ' * 100)
-                    self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
-                                                                   self.creep_hp,
-                                                                   sent_creeps,
-                                                                   self.creep_count))
+                self.stdscr.addstr(CREEP_ROW, 0, ' ' * 100)
+                self.stdscr.addstr(CREEP_ROW, 0, CREEP_INFO % (sec,
+                                                               self.creep_hp,
+                                                               sent_creeps,
+                                                               self.creep_count))
 
                 if tick == FPS:
                     for creep in self.creeps:
@@ -752,7 +757,7 @@ class MainMenu():
         self.left_col = 20
         self.cursor_row = 0
         self.maps = [1, 2, 3, 4, 5]
-        self.difficulties = ['Easy', 'Medium', 'Hard']
+        self.difficulties = ['easy', 'medium', 'hard']
         self.selected_map = 0
         self.selected_difficulty = 0
         self.text_map_template = 'Select map: %s'
@@ -816,7 +821,8 @@ class MainMenu():
     def enter_menu(self):
         if self.cursor_row == 2:
             game = GameController(self.stdscr)
-            game.setup_level(self.selected_map + 1)
+            game.setup_level(self.selected_map + 1,
+                             self.difficulties[self.selected_difficulty])
             game.start_game()
         if self.cursor_row == 3:
             sys.exit(0)
