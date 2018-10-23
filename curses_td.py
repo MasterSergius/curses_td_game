@@ -31,7 +31,7 @@ TIME_DELAY = 100
 START_GOLD = 50
 
 TOWERS = {'c': {'damage': 6, 'speed': 6, 'range': 1, 'images': TOWER_IMAGE_1},
-          'm': {'damage': 7, 'speed': 7, 'range': 6, 'images': TOWER_IMAGE_2},
+          'm': {'damage': 9, 'speed': 9, 'range': 6, 'images': TOWER_IMAGE_2},
           's': {'damage': 100, 'speed': 1, 'range': 10, 'images': TOWER_IMAGE_3,
                 'special': 5},
           'i': {'damage': 1, 'speed': 1, 'range': 3, 'images': TOWER_IMAGE_4,
@@ -41,7 +41,7 @@ PRICES = {'c': 5, 'm': 20, 's': 50, 'i': 100}
 UPGRADE_STATS = {'c': {'damage': 1, 'speed': 1},
                  'm': {'damage': 3, 'speed': 3},
                  's': {'damage': 200, 'range': 1, 'special': 1},
-                 'i': {'damage': 1, 'speed': 1, 'special': 2}}
+                 'i': {'damage': 1, 'speed': 1, 'special': 1}}
 
 TOWER_UPGRADE_PRICE_MULTIPLIER = 2
 TOWER_DESTROY_PRICE_PERCENTAGE = 90
@@ -269,8 +269,8 @@ class Creep():
 
     def slow_effect(self, slow_points):
         self.speed = self.original_speed - slow_points
-        if self.speed < 1:
-            self.speed = 1
+        if self.speed < 0.1:
+            self.speed = 0.1
 
     def clear_effects(self):
         self.speed = self.original_speed
@@ -490,11 +490,12 @@ class GameController():
         self.towers = []
         self.gold = START_GOLD
         self.kills = 0
+        self.difficulty_hp = DIFFICULTY_HP_MULTIPLIER[difficulty]
         # used for initial creep info
         self.creep_hp = START_CREEP_HP
+        self.creep_hp += int(self.creep_hp * self.difficulty_hp)
         self.level_round = 0
         self.creep_count = 0
-        self.difficulty_hp = DIFFICULTY_HP_MULTIPLIER[difficulty]
 
     def setup_round(self, round_number):
         """ Prepare next wave of creeps. """
