@@ -490,6 +490,8 @@ class GameController():
         self.towers = []
         self.gold = START_GOLD
         self.kills = 0
+        # Save original creep hp to make correct calculations
+        self.base_creep_hp = START_CREEP_HP
         self.difficulty_hp = DIFFICULTY_HP_MULTIPLIER[difficulty]
         # used for initial creep info
         self.creep_hp = START_CREEP_HP
@@ -510,22 +512,22 @@ class GameController():
             self.creep_count = CREEP_COUNT
             self.creep_speed = START_CREEP_SPEED
         else:
-            self.creep_hp = self.temp_creep_hp
+            self.base_creep_hp = self.temp_creep_hp
             self.creep_reward = self.temp_creep_reward
             if self.boss_round:
                 self.creep_count = 1
-                self.temp_creep_hp = self.creep_hp
-                self.creep_hp *= BOSS_HP_MULTIPLY
+                self.temp_creep_hp = self.base_creep_hp
+                self.base_creep_hp *= BOSS_HP_MULTIPLY
                 self.creep_reward *= BOSS_REWARD_MULTIPLY
             else:
                 self.creep_count = CREEP_COUNT
-                self.creep_hp += (self.level_round - 1) * CREEP_HP_LEVEL_MULTIPLIER
-                self.temp_creep_hp = self.creep_hp
+                self.base_creep_hp += (self.level_round - 1) * CREEP_HP_LEVEL_MULTIPLIER
+                self.temp_creep_hp = self.base_creep_hp
                 self.creep_reward += CREEP_REWARD_UPGRADE
                 self.temp_creep_reward = self.creep_reward
                 self.creep_speed += CREEP_SPEED_UPGRADE
         #modify creep hp according to difficulty
-        self.creep_hp += int(self.creep_hp * self.difficulty_hp)
+        self.creep_hp = self.base_creep_hp + int(self.base_creep_hp * self.difficulty_hp)
 
     def spawn_creep(self):
         """ Spawn new creep with current level stats. """
